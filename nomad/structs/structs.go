@@ -578,6 +578,8 @@ type JobDeregisterRequest struct {
 	// garbage collector
 	Purge bool
 
+	Eval *Evaluation
+
 	WriteRequest
 }
 

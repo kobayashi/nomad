@@ -556,9 +556,17 @@ func (n *nomadFSM) applyUpsertJob(buf []byte, index uint64) interface{} {
 	}
 
 	if req.Eval != nil {
-		if err := n.upsertPotentiallyDuplicateEval(index, req.Eval); err != nil {
+		evals := []*structs.Evaluation{req.Eval}
+
+		err := n.state.UpsertEvals(index, evals)
+		if err == state.ErrDuplicateEval {
+			// was already handled before ignore second insertion
+			// all good
+		} else if err != nil {
 			n.logger.Error("UpsertJob eval insertion failed", "error", err)
 			return err
+		} else {
+			n.handleUpsertedEvals(evals)
 		}
 	}
 
@@ -572,14 +580,36 @@ func (n *nomadFSM) applyDeregisterJob(buf []byte, index uint64) interface{} {
 		panic(fmt.Errorf("failed to decode request: %v", err))
 	}
 
-	return n.state.WithWriteTransaction(func(tx state.Txn) error {
+	var evals []*structs.Evaluation
+
+	err := n.state.WithWriteTransaction(func(tx state.Txn) error {
 		if err := n.handleJobDeregister(index, req.JobID, req.Namespace, req.Purge, tx); err != nil {
 			n.logger.Error("deregistering job failed", "error", err)
 			return err
 		}
 
+		if req.Eval != nil {
+			evals = []*structs.Evaluation{req.Eval}
+
+			if err := n.state.UpsertEvalsTxn(index, evals, tx); err == state.ErrDuplicateEval {
+				evals = nil
+			} else if err != nil {
+				n.logger.Error("UpsertEvals failed", "error", err)
+				return err
+			}
+		}
+
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	if len(evals) != 0 {
+		n.handleUpsertedEvals(evals)
+	}
+
+	return nil
 }
 
 func (n *nomadFSM) applyBatchDeregisterJob(buf []byte, index uint64) interface{} {
@@ -679,19 +709,6 @@ func (n *nomadFSM) upsertEvals(index uint64, evals []*structs.Evaluation) error 
 	return nil
 }
 func (n *nomadFSM) upsertPotentiallyDuplicateEval(index uint64, eval *structs.Evaluation) error {
-	evals := []*structs.Evaluation{eval}
-
-	err := n.state.UpsertEvals(index, evals)
-	if err == state.ErrDuplicateEval {
-		// was already handled before ignore second insertion
-		return nil
-	} else if err != nil {
-		n.logger.Error("UpsertEvals failed", "error", err)
-		return err
-	}
-
-	n.handleUpsertedEvals(evals)
-	return nil
 }
 
 // handleUpsertingEval is a helper for taking action after upserting
