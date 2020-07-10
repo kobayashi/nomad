@@ -369,7 +369,7 @@ func (j *Job) Register(args *structs.JobRegisterRequest, reply *structs.JobRegis
 
 	// COMPAT(1.1): Remove in 1.1.0 - 0.12.1 introduced atomic eval job registration
 	if args.Eval != nil &&
-		(!submittedEval || ServersMeetMinimumVersion(j.srv.Members(), minJobRegisterAtomicEvalVersion, false)) {
+		!(submittedEval && ServersMeetMinimumVersion(j.srv.Members(), minJobRegisterAtomicEvalVersion, false)) {
 		args.Eval.JobModifyIndex = reply.JobModifyIndex
 		update := &structs.EvalUpdateRequest{
 			Evals:        []*structs.Evaluation{args.Eval},
