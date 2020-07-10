@@ -708,8 +708,6 @@ func (n *nomadFSM) upsertEvals(index uint64, evals []*structs.Evaluation) error 
 	n.handleUpsertedEvals(evals)
 	return nil
 }
-func (n *nomadFSM) upsertPotentiallyDuplicateEval(index uint64, eval *structs.Evaluation) error {
-}
 
 // handleUpsertingEval is a helper for taking action after upserting
 // evaluations.
