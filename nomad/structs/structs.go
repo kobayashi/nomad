@@ -563,6 +563,8 @@ type JobRegisterRequest struct {
 	// PolicyOverride is set when the user is attempting to override any policies
 	PolicyOverride bool
 
+	Eval *Evaluation
+
 	WriteRequest
 }
 

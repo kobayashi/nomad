@@ -2540,12 +2540,24 @@ func (s *StateStore) UpsertEvalsTxn(index uint64, evals []*structs.Evaluation, t
 	return nil
 }
 
+var ErrDuplicateEval = fmt.Errorf("eval already exists")
+
+func isPotentialDuplicateEval(eval *structs.Evaluation) bool {
+	return eval.Status == structs.EvalStatusPending &&
+		(eval.TriggeredBy == structs.EvalTriggerJobRegister ||
+			eval.TriggeredBy == structs.EvalTriggerPeriodicJob)
+}
+
 // nestedUpsertEvaluation is used to nest an evaluation upsert within a transaction
 func (s *StateStore) nestedUpsertEval(txn *memdb.Txn, index uint64, eval *structs.Evaluation) error {
 	// Lookup the evaluation
 	existing, err := txn.First("evals", "id", eval.ID)
 	if err != nil {
 		return fmt.Errorf("eval lookup failed: %v", err)
+	}
+
+	if existing != nil && isPotentialDuplicateEval(eval) {
+		return ErrDuplicateEval
 	}
 
 	// Update the indexes

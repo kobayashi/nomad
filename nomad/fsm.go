@@ -555,6 +555,13 @@ func (n *nomadFSM) applyUpsertJob(buf []byte, index uint64) interface{} {
 		}
 	}
 
+	if req.Eval != nil {
+		if err := n.upsertPotentiallyDuplicateEval(index, req.Eval); err != nil {
+			n.logger.Error("UpsertJob eval insertion failed", "error", err)
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -664,6 +671,21 @@ func (n *nomadFSM) applyUpdateEval(buf []byte, index uint64) interface{} {
 
 func (n *nomadFSM) upsertEvals(index uint64, evals []*structs.Evaluation) error {
 	if err := n.state.UpsertEvals(index, evals); err != nil {
+		n.logger.Error("UpsertEvals failed", "error", err)
+		return err
+	}
+
+	n.handleUpsertedEvals(evals)
+	return nil
+}
+func (n *nomadFSM) upsertPotentiallyDuplicateEval(index uint64, eval *structs.Evaluation) error {
+	evals := []*structs.Evaluation{eval}
+
+	err := n.state.UpsertEvals(index, evals)
+	if err == state.ErrDuplicateEval {
+		// was already handled before ignore second insertion
+		return nil
+	} else if err != nil {
 		n.logger.Error("UpsertEvals failed", "error", err)
 		return err
 	}
