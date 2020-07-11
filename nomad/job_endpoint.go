@@ -796,7 +796,7 @@ func (j *Job) Deregister(args *structs.JobDeregisterRequest, reply *structs.JobD
 
 	// Populate the reply with job information
 	reply.JobModifyIndex = index
-	reply.EvalID = args.Eval.JobID
+	reply.EvalID = args.Eval.ID
 	reply.EvalCreateIndex = index
 	reply.Index = index
 

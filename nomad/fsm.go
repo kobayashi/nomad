@@ -583,30 +583,32 @@ func (n *nomadFSM) applyDeregisterJob(buf []byte, index uint64) interface{} {
 	var evals []*structs.Evaluation
 
 	err := n.state.WithWriteTransaction(func(tx state.Txn) error {
-		if err := n.handleJobDeregister(index, req.JobID, req.Namespace, req.Purge, tx); err != nil {
+		err := n.handleJobDeregister(index, req.JobID, req.Namespace, req.Purge, tx)
+
+		if err != nil {
 			n.logger.Error("deregistering job failed", "error", err)
 			return err
 		}
 
-		if req.Eval != nil {
-			evals = []*structs.Evaluation{req.Eval}
-
-			if err := n.state.UpsertEvalsTxn(index, evals, tx); err == state.ErrDuplicateEval {
-				evals = nil
-			} else if err != nil {
-				n.logger.Error("UpsertEvals failed", "error", err)
-				return err
-			}
-		}
-
 		return nil
 	})
-	if err != nil {
-		return err
+
+	// always attempt upsert eval even if job deregister fail
+	if req.Eval != nil {
+		evals = []*structs.Evaluation{req.Eval}
+
+		if err := n.state.UpsertEvals(index, evals); err == state.ErrDuplicateEval {
+			evals = nil
+		} else if err != nil {
+			n.logger.Error("UpsertEvals failed", "error", err)
+			return err
+		}
+
+		n.handleUpsertedEvals(evals)
 	}
 
-	if len(evals) != 0 {
-		n.handleUpsertedEvals(evals)
+	if err != nil {
+		return err
 	}
 
 	return nil
